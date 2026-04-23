@@ -1,7 +1,6 @@
 using Akka.Actor;
 using Akka.Event;
 using Akka.Routing;
-using Akka.Streams;
 
 namespace AkkaSample1;
 
@@ -41,8 +40,7 @@ public sealed class IngestionManagerActor : ReceiveActor
 
         var recordProcessorRouter = Context.ActorOf(routerProps, "record-processor-router");
         _storageActor = Context.ActorOf(Props.Create(() => new StorageActor(_settings.StorageBatchSize, _settings.StorageFlushInterval)), "storage");
-        var materializer = ActorMaterializer.Create(Context.System);
-        _fileParserActor = Context.ActorOf(Props.Create(() => new FileParserActor(recordProcessorRouter, materializer, _settings)), "file-parser");
+        _fileParserActor = Context.ActorOf(Props.Create(() => new FileParserActor(recordProcessorRouter, _settings)), "file-parser");
 
         Receive<StartIngestion>(HandleStartIngestion);
         Receive<ValidRecord>(HandleValidRecord);

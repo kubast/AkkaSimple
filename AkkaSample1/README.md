@@ -1,15 +1,17 @@
 # Akka.NET Ingestion Demo
 
-Ten projekt pokazuje ingestion dużego pliku `.csv/.dat` z użyciem aktorów i Akka.Streams:
+Ten projekt pokazuje ingestion dużego pliku `.csv/.dat` z użyciem aktorów:
 - bez ładowania całego pliku do RAM,
 - z kontrolą liczby rekordów in-flight,
 - z izolacją błędów rekordów i restartem workerów.
+- z obsługą opcjonalnego nagłówka `Id,EventDate,Payload`,
+- z obsługą rekordów wieloliniowych (np. payload w cudzysłowie).
 
 ## Jak działa pipeline
 
 1. `Program` uruchamia demo z argumentem ścieżki pliku lub domyślnym `sample-data.csv`.
 2. `IngestionManagerActor` startuje job, tworzy parser, router workerów i storage.
-3. `FileParserActor` czyta plik strumieniowo i wysyła rekordy do workerów przez `Ask`.
+3. `FileParserActor` czyta rekordy z parsera CSV (także `.dat`), pomija header jeśli występuje i wysyła rekordy do workerów przez `Ask`.
 4. `RecordWorkerActor` waliduje rekord i wzbogaca go o checksum MD5.
 5. `StorageActor` buforuje poprawne rekordy i robi symulowany batch insert.
 6. Manager agreguje metryki i zwraca `IngestionSummary`.

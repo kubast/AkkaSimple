@@ -1,21 +1,17 @@
 using System.Text;
 using Akka.Actor;
-using Akka.IO;
-using Akka.Streams;
-using Akka.Streams.Dsl;
+using Microsoft.VisualBasic.FileIO;
 
 namespace AkkaSample1;
 
 public sealed class FileParserActor : ReceiveActor
 {
     private readonly IActorRef _recordProcessorRouter;
-    private readonly IMaterializer _materializer;
     private readonly IngestionSettings _settings;
 
-    public FileParserActor(IActorRef recordProcessorRouter, IMaterializer materializer, IngestionSettings settings)
+    public FileParserActor(IActorRef recordProcessorRouter, IngestionSettings settings)
     {
         _recordProcessorRouter = recordProcessorRouter;
-        _materializer = materializer;
         _settings = settings;
 
         ReceiveAsync<BeginFileParsing>(HandleBeginFileParsingAsync);
@@ -25,19 +21,47 @@ public sealed class FileParserActor : ReceiveActor
     {
         try
         {
+            ValidateFileExtension(message.FilePath);
+
             var processedRecords = 0L;
-            await FileIO.FromFile(new FileInfo(message.FilePath))
-                .Via(Framing.Delimiter(ByteString.FromString(Environment.NewLine), 64 * 1024, allowTruncation: true))
-                .Select(bytes => bytes.ToString(Encoding.UTF8))
-                .Where(line => !string.IsNullOrWhiteSpace(line))
-                .ZipWithIndex()
-                .Select(item => new ProcessRecord(item.Item2 + 1, item.Item1))
-                .SelectAsync(_settings.MaxInFlightRecords, command => ProcessLineAsync(command))
-                .RunForeach(result =>
+
+            using var parser = CreateParser(message.FilePath);
+            var lineNumber = 0L;
+            var skippedHeader = false;
+
+            while (!parser.EndOfData)
+            {
+                string[]? fields;
+                try
                 {
-                    message.Manager.Tell(result);
-                    processedRecords++;
-                }, _materializer);
+                    fields = parser.ReadFields();
+                }
+                catch (MalformedLineException ex)
+                {
+                    var invalidLine = parser.ErrorLine ?? string.Empty;
+                    var invalidNumber = parser.ErrorLineNumber > 0 ? parser.ErrorLineNumber : lineNumber + 1;
+                    message.Manager.Tell(new InvalidRecord(invalidNumber, invalidLine, $"Malformed delimited record: {ex.Message}"));
+                    continue;
+                }
+
+                if (fields is null || fields.All(string.IsNullOrWhiteSpace))
+                {
+                    continue;
+                }
+
+                if (!skippedHeader && IsHeaderRow(fields))
+                {
+                    skippedHeader = true;
+                    continue;
+                }
+
+                lineNumber++;
+                var rawLine = string.Join(",", fields.Select(SanitizeField));
+                var command = new ProcessRecord(lineNumber, rawLine);
+                var result = await ProcessLineAsync(command);
+                message.Manager.Tell(result);
+                processedRecords++;
+            }
 
             message.Manager.Tell(new ParserCompleted(processedRecords));
         }
@@ -57,6 +81,57 @@ public sealed class FileParserActor : ReceiveActor
         {
             return new InvalidRecord(command.LineNumber, command.RawLine, $"Worker processing failure: {ex.Message}");
         }
+    }
+
+    private static TextFieldParser CreateParser(string filePath)
+    {
+        var parser = new TextFieldParser(filePath, Encoding.UTF8)
+        {
+            TextFieldType = FieldType.Delimited,
+            HasFieldsEnclosedInQuotes = true,
+            TrimWhiteSpace = false
+        };
+        parser.SetDelimiters(",");
+        return parser;
+    }
+
+    private static void ValidateFileExtension(string filePath)
+    {
+        var extension = Path.GetExtension(filePath);
+        if (extension.Equals(".csv", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".dat", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException($"Unsupported input extension '{extension}'. Supported extensions: .csv, .dat.");
+    }
+
+    private static bool IsHeaderRow(string[] fields)
+    {
+        if (fields.Length < 3)
+        {
+            return false;
+        }
+
+        return fields[0].Trim().Equals("Id", StringComparison.OrdinalIgnoreCase) &&
+               fields[1].Trim().Equals("EventDate", StringComparison.OrdinalIgnoreCase) &&
+               fields[2].Trim().StartsWith("Payload", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string SanitizeField(string field)
+    {
+        if (field.Contains('"'))
+        {
+            field = field.Replace("\"", "\"\"");
+        }
+
+        if (field.Contains(',') || field.Contains('\r') || field.Contains('\n'))
+        {
+            return $"\"{field}\"";
+        }
+
+        return field;
     }
 }
 
