@@ -1,5 +1,7 @@
-﻿// See https://aka.ms/new-console-template for more information
-Console.WriteLine("Hello, World!");
-Console.WriteLine(":)");
+﻿using AkkaSample1;
 
-await AkkaSample1.AkkaDemo.RunAsync();
+var inputPath = args.Length > 0
+    ? args[0]
+    : Path.Combine(AppContext.BaseDirectory, "sample-data.csv");
+
+await AkkaDemo.RunAsync(inputPath);

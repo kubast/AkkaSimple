@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Akka" Version="1.5.65" />
+    <PackageReference Include="Akka.Streams" Version="1.5.65" />
   </ItemGroup>
 
 </Project>
