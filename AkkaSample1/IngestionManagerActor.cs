@@ -35,7 +35,7 @@ public sealed class IngestionManagerActor : ReceiveActor
                 _ => Directive.Restart
             });
 
-        var routerProps = Props.Create<RecordWorkerActor>()
+        var routerProps = Props.Create(() => new RecordWorkerActor(_settings))
             .WithRouter(new RoundRobinPool(_settings.WorkerPoolSize, null, workerSupervisor, null, false));
 
         var recordProcessorRouter = Context.ActorOf(routerProps, "record-processor-router");

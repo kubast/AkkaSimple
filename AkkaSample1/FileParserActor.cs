@@ -56,8 +56,8 @@ public sealed class FileParserActor : ReceiveActor
                 }
 
                 lineNumber++;
-                var rawLine = string.Join(",", fields.Select(SanitizeField));
-                var command = new ProcessRecord(lineNumber, rawLine);
+                var rawLine = string.Join(_settings.FieldSeparator, fields.Select(SanitizeField));
+                var command = new ProcessRecord(lineNumber, fields, rawLine);
                 var result = await ProcessLineAsync(command);
                 message.Manager.Tell(result);
                 processedRecords++;
@@ -83,15 +83,17 @@ public sealed class FileParserActor : ReceiveActor
         }
     }
 
-    private static TextFieldParser CreateParser(string filePath)
+    private TextFieldParser CreateParser(string filePath)
     {
+        ValidateSeparators();
+
         var parser = new TextFieldParser(filePath, Encoding.UTF8)
         {
             TextFieldType = FieldType.Delimited,
             HasFieldsEnclosedInQuotes = true,
             TrimWhiteSpace = false
         };
-        parser.SetDelimiters(",");
+        parser.SetDelimiters(_settings.FieldSeparator);
         return parser;
     }
 
@@ -119,16 +121,37 @@ public sealed class FileParserActor : ReceiveActor
                fields[2].Trim().StartsWith("Payload", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string SanitizeField(string field)
+    private void ValidateSeparators()
     {
-        if (field.Contains('"'))
+        if (string.IsNullOrWhiteSpace(_settings.FieldSeparator))
         {
-            field = field.Replace("\"", "\"\"");
+            throw new InvalidOperationException("Field separator cannot be empty.");
         }
 
-        if (field.Contains(',') || field.Contains('\r') || field.Contains('\n'))
+        if (string.IsNullOrEmpty(_settings.TextQualifier) || _settings.TextQualifier != "\"")
         {
-            return $"\"{field}\"";
+            throw new InvalidOperationException("Text qualifier must be a double quote (\") for the current parser.");
+        }
+
+        if (string.IsNullOrEmpty(_settings.RecordSeparator))
+        {
+            throw new InvalidOperationException("Record separator cannot be empty.");
+        }
+    }
+
+    private string SanitizeField(string field)
+    {
+        if (field.Contains(_settings.TextQualifier, StringComparison.Ordinal))
+        {
+            field = field.Replace(_settings.TextQualifier, $"{_settings.TextQualifier}{_settings.TextQualifier}", StringComparison.Ordinal);
+        }
+
+        if (field.Contains(_settings.FieldSeparator, StringComparison.Ordinal) ||
+            field.Contains('\r') ||
+            field.Contains('\n') ||
+            field.Contains(_settings.RecordSeparator, StringComparison.Ordinal))
+        {
+            return $"{_settings.TextQualifier}{field}{_settings.TextQualifier}";
         }
 
         return field;

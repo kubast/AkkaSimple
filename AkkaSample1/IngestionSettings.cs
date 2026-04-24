@@ -7,5 +7,9 @@ public sealed class IngestionSettings
     public int StorageBatchSize { get; init; } = 50;
     public TimeSpan StorageFlushInterval { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan WorkerAskTimeout { get; init; } = TimeSpan.FromSeconds(5);
+    public string FieldSeparator { get; init; } = ",";
+    public string TextQualifier { get; init; } = "\"";
+    public string RecordSeparator { get; init; } = Environment.NewLine;
+    public string PathDelimiter { get; init; } = "/";
 }
 

@@ -4,7 +4,7 @@ namespace AkkaSample1;
 
 public sealed record StartIngestion(string FilePath);
 public sealed record BeginFileParsing(string FilePath, IActorRef Manager);
-public sealed record ProcessRecord(long LineNumber, string RawLine);
+public sealed record ProcessRecord(long LineNumber, string[] Fields, string RawLine);
 public sealed record StoreValidRecord(ValidRecord Record);
 public sealed record CompleteStorage(IActorRef ReplyTo);
 public sealed record ParserCompleted(long TotalRecords);

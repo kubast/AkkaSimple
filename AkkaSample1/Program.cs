@@ -5,3 +5,4 @@ var inputPath = args.Length > 0
     : Path.Combine(AppContext.BaseDirectory, "sample-data.csv");
 
 await AkkaDemo.RunAsync(inputPath);
+// complete the file ingestion

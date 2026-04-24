@@ -76,6 +76,12 @@ dotnet run --project AkkaSample1 -- "C:\\data\\big-input.csv"
 
 Bez argumentu projekt utworzy i użyje lokalny plik `sample-data.csv`.
 
+Możesz też ustawić delimitery przez zmienne środowiskowe:
+- `INGEST_FIELD_SEPARATOR` (domyślnie `,`)
+- `INGEST_TEXT_QUALIFIER` (domyślnie `"`)
+- `INGEST_RECORD_SEPARATOR` (domyślnie `Environment.NewLine`)
+- `INGEST_PATH_DELIMITER` (domyślnie `/`)
+
 ## Jak interpretować metryki
 
 - `Total records`: liczba niepustych linii wejściowych.
